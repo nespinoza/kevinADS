@@ -433,3 +433,42 @@ def loadRef(name, A=0, f=0.5):
         ref.esm = ESM(ref.RpRs, ref.Ts, ref.aRs, ref.kmag)
         print("Finished loading parameters for " + name)
     return ref
+
+def neclipses(S, wave, RpRs, Ts, aRs, nsigma = 4):
+
+    """
+    This function returns the number of eclipses needed to reach an n-sigma difference on 
+    the measured temperature between the equivalent full-redistribution planet temperature and 
+    the no-redistribution temperature. This assumes SNR is scaled to the precision of TRAPPIST-1b 
+    MIRI eclipses (Greene+2023).
+    """
+
+    # First, obtain the average-per-eclipse SNR observed for the TRAPPIST-1b MIRI 15-um photometry:
+    SNR_t1b = ( 861. / (np.sqrt(5) * 99.) )
+
+    # Now, get the expected SNR on the planet of interest:
+    SNRp = S * SNR_t1b
+
+    # Now, calculate the equilibrium temperature on the planet of interest:
+    Teq = planetTeq(Ts, aRs, A=0, f=1)
+
+    # Next, estimate Fp/Fs for this equilibrium case:
+    Bp = planck(wave*1e-6, Teq)
+    Bs = planck(wave*1e-6, Ts)
+    FpFs = planetStarEmission(RpRs, Bp, Bs)
+
+    # Now, using this and the expected SNR on the planet, estimate the eclipse depth precision:
+    sigma_eclipse = ( (FpFs) / (SNRp) ) * 1e-6
+
+    # Now convert this eclipse depth precision to *temperature* precision, assuming Rayleigh-Jeans applies:
+    sigma_T = ( sigma_eclipse * Ts ) / ( RpRs )**2
+
+    # Then, compute the day-side temperature for a no-redistribution planet (https://ui.adsabs.harvard.edu/abs/2011ApJ...729...54C/abstract, eq 4):
+    T0 = Ts * (1. / aRs)**(0.5)
+    Tday = T0 * (2./3.)**(1./4.)#865.#T0 * ( 2/3 )**(1./4.) # Cowan & Agol (eq. 4 with Ab = 0)
+
+    # Now, given the input nsigma, estimate number of eclipses needed to reach desired detection:
+    neclipses = ( ( nsigma * sigma_T ) / ( Tday - Teq ) )**2
+
+    print('Tday:',Tday,'| Teq:',Teq,'| SNR ratio:',S,' | sigma_eclipse', sigma_eclipse*1e6)
+    return neclipses
